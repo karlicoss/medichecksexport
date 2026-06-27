@@ -132,6 +132,22 @@ The frontend also uses `https://results.api.medichecks.com` for PDF streaming:
 The report list already returns same-origin PDF URLs, so the exporter uses
 those URLs for PDF downloads.
 
+## Network blocking
+
+Medichecks appears to block some VPS or datacenter egress paths before requests
+reach the application. On one tested VPS, both `https://my.medichecks.com/` and
+`https://authenticate.medichecks.com/login` returned:
+
+```text
+HTTP/2 403
+server: awselb/2.0
+```
+
+The same response was returned from the host and from the Docker container, and
+browser-like request headers did not change it. This looks like AWS load
+balancer-level blocking, so the exporter may need to run from a different
+network or through an allowed proxy/VPN.
+
 ## Archived PDF comparison
 
 The exported JSON and PDFs under `data/` were compared against previously
