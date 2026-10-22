@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import argparse
-import json
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from .common import JsonObject
+from hpikit.json import Json, loads
 
 
-def _data(document: JsonObject) -> list[JsonObject]:
+def _data(document: Json) -> list[Json]:
     value = document["data"]
     assert isinstance(value, list), value
     result = []
@@ -30,7 +29,7 @@ def _format_value(*, value: float | str | bool | None) -> str:
 
 
 def _test_results_view_id(root: Path) -> int:
-    document = json.loads((root / "views.json").read_text())
+    document = loads((root / "views.json").read_bytes())
     assert isinstance(document, dict), document
     for view in _data(document):
         name = view["view_name"]
@@ -73,8 +72,8 @@ class Snapshot:
 
 @dataclass(frozen=True)
 class Observation:
-    raw: JsonObject
-    section: JsonObject
+    raw: Json
+    section: Json
     record: HealthRecord
 
     @property
@@ -127,8 +126,8 @@ class Observation:
 @dataclass(frozen=True)
 class HealthRecord:
     path: Path
-    report: JsonObject
-    views: dict[int, JsonObject]
+    report: Json
+    views: dict[int, Json]
     test_results_view_id: int
 
     @classmethod
@@ -138,12 +137,12 @@ class HealthRecord:
         *,
         test_results_view_id: int,
     ) -> HealthRecord:
-        report = json.loads((path / "report.json").read_text())
+        report = loads((path / "report.json").read_bytes())
         assert isinstance(report, dict), report
         views = {}
         for view_path in sorted(path.glob("view_*.json")):
             view_id = int(view_path.stem.removeprefix("view_"))
-            document = json.loads(view_path.read_text())
+            document = loads(view_path.read_bytes())
             assert isinstance(document, dict), document
             views[view_id] = document
         assert len(views) > 0, path

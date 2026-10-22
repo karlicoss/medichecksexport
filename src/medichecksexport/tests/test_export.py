@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock
@@ -148,7 +149,7 @@ def test_export_account_writes_metadata_and_record_views(
 def test_export_account_skips_existing_record_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     client = export.MedichecksClient.__new__(export.MedichecksClient)
     client.uid = "user"
@@ -180,6 +181,7 @@ def test_export_account_skips_existing_record_directory(
     marker = record_dir / "marker.txt"
     marker.write_text("keep")
 
+    caplog.set_level(logging.INFO)
     export.export_account(
         client=client,
         output_directory=tmp_path,
@@ -188,4 +190,4 @@ def test_export_account_skips_existing_record_directory(
     assert marker.read_text() == "keep"
     health_record_observations.assert_not_called()
     get_bytes.assert_not_called()
-    assert "(skip existing)" in capsys.readouterr().err
+    assert "(skip existing)" in caplog.text
