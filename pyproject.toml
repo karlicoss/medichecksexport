@@ -3,6 +3,7 @@
 dynamic = ["version"]  # version is managed by build backend
 name = "medichecksexport"
 dependencies = [
+    "hpikit",
 ]
 requires-python = ">=3.14"
 
@@ -23,7 +24,11 @@ dal = [
     "tabulate",
 ]
 export = [
+    "kloggy",
     "requests",
+]
+optional = [
+    "hpikit[optional]", # faster JSON parsing and transparent compression
 ]
 
 [dependency-groups]
@@ -34,7 +39,7 @@ testing = [
     "pytest",
     "ruff",
 
-    "medichecksexport[dal,export]",
+    "medichecksexport[dal,export,optional]",
 ]
 typecheck = [
     "mypy",

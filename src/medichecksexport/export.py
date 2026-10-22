@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sys
 import time
 from html.parser import HTMLParser
 from pathlib import Path
@@ -11,8 +10,10 @@ from typing import Any
 from urllib.parse import urljoin
 
 import requests
+from hpikit.json import Json
+from kloggy import get_logger
 
-from .common import Json, JsonObject
+logger = get_logger(__name__)
 
 _APP_URL = "https://my.medichecks.com"
 _AUTH_URL = "https://authenticate.medichecks.com"
@@ -26,13 +27,13 @@ _RETRYABLE_STATUS_CODES = {
 }
 
 
-def _load_secrets(path: Path) -> JsonObject:
+def _load_secrets(path: Path) -> Json:
     secrets = json.loads(path.read_text())
     assert isinstance(secrets, dict), secrets
     return secrets
 
 
-def _write_json(path: Path, value: Json) -> None:
+def _write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False))
 
@@ -44,20 +45,20 @@ def _safe_file_name(name: str) -> str:
     return name
 
 
-def _record_date(report: JsonObject) -> str:
+def _record_date(report: Json) -> str:
     value = report.get("date")
     if isinstance(value, str):
         return value[:10].replace("-", "")
     return "unknown"
 
 
-def _record_id(report: JsonObject) -> str:
+def _record_id(report: Json) -> str:
     value = report["health_record_id"]
     assert isinstance(value, int | str), value
     return str(value)
 
 
-def _record_directory_name(report: JsonObject) -> str:
+def _record_directory_name(report: Json) -> str:
     return f"{_record_date(report)}_{_safe_file_name(_record_id(report))}"
 
 
@@ -142,7 +143,7 @@ class MedichecksClient:
         *,
         email: str,
         password: str,
-    ) -> JsonObject:
+    ) -> Json:
         response = self.request("GET", f"{_APP_URL}/", timeout=30)
         response.raise_for_status()
         parser = _LoginFormParser()
@@ -187,7 +188,7 @@ class MedichecksClient:
         endpoint_or_url: str,
         *,
         params: dict[str, str | int] | None = None,
-    ) -> JsonObject | list[Json]:
+    ) -> Json | list[Any]:
         assert self.uid is not None
         url = endpoint_or_url if endpoint_or_url.startswith("http") else urljoin(f"{_APP_URL}/", endpoint_or_url)
         request_params = dict(params or {})
@@ -222,12 +223,12 @@ class MedichecksClient:
         response.raise_for_status()
         return response.content
 
-    def views(self) -> JsonObject:
+    def views(self) -> Json:
         value = self.get_json("/api/views")
         assert isinstance(value, dict), value
         return value
 
-    def reports(self) -> list[JsonObject]:
+    def reports(self) -> list[Json]:
         value = self.get_json("/api/results/reports")
         assert isinstance(value, list), value
         reports = []
@@ -241,13 +242,13 @@ class MedichecksClient:
         *,
         health_record_id: str,
         view_id: int,
-    ) -> JsonObject:
+    ) -> Json:
         value = self.get_json(f"/api/observations/health-record/{health_record_id}/view/{view_id}")
         assert isinstance(value, dict), value
         return value
 
 
-def _test_results_view_id(views: JsonObject) -> int:
+def _test_results_view_id(views: Json) -> int:
     data = views["data"]
     assert isinstance(data, list), data
     for view in data:
@@ -265,7 +266,7 @@ def _test_results_view_id(views: JsonObject) -> int:
 def _write_pdf(
     *,
     client: MedichecksClient,
-    report: JsonObject,
+    report: Json,
     path: Path,
 ) -> None:
     url = report.get("url")
@@ -287,7 +288,7 @@ def export_account(
     _write_json(output_directory / "views.json", views)
     _write_json(output_directory / "reports.json", reports)
 
-    print(f"Found {len(reports)} reports", file=sys.stderr)
+    logger.info(f"Found {len(reports)} reports")
 
     for index, report_raw in enumerate(reports, start=1):
         report = report_raw
@@ -297,10 +298,10 @@ def export_account(
         name = report.get("name", "unknown-name")
         prefix = f"[{index}/{len(reports)}] {date} {record_id} {name}"
         if record_dir.exists():
-            print(f"{prefix} (skip existing)", file=sys.stderr)
+            logger.info(f"{prefix} (skip existing)")
             continue
 
-        print(f"{prefix} (fetch)", file=sys.stderr)
+        logger.info(f"{prefix} (fetch)")
 
         _write_json(record_dir / "report.json", report)
         path = record_dir / f"view_{test_results_view_id}.json"
@@ -352,7 +353,7 @@ def main() -> None:
         client=client,
         output_directory=args.output,
     )
-    print(f"Archive written to {args.output.resolve()}", file=sys.stderr)
+    logger.info(f"Archive written to {args.output.resolve()}")
 
 
 if __name__ == "__main__":
